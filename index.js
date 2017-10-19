@@ -10,9 +10,20 @@ const emoji = require('node-emoji')
 
 const DB_FILE = path.resolve(__dirname, './data/sbatte.json')
 const T = 'YYYY-MM-DD HH:mm'
+const H = 'HH:mm'
 
 const readSbatte = () => JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))
 const writeSbatte = sbatte => fs.writeFileSync(DB_FILE, JSON.stringify(sbatte, null, 2))
+
+// Status are: sleep, working, done
+const STATUS_EMOJI = {
+  'sleep': 'zzz',
+  'working': 'monkey',
+  'done': 'rocket',
+}
+
+const updateLast = (list, updater) =>
+   _.update(list, `[${list.length - 1}]`, updater)
 
 const sessionsMinutesSpent = sessions => sessions.reduce((minutes, s) => {
   const start = moment(s.start, T)
@@ -21,26 +32,17 @@ const sessionsMinutesSpent = sessions => sessions.reduce((minutes, s) => {
 }, 0)
 
 const log = (msg = '') => process.stdout.write(`${msg}\n`)
+const space = n => _.repeat(' ', n)
 
-// console.prototype.log = function() {
-//   this._stdout.write(util.format.apply(this, arguments) + '\n');
-// };
-//
-// console.log(emoji.get('coffe') + '\n')
-log()
-log(`${emoji.get('monkey')}    swapick-bug-drago  ${emoji.get('hourglass_flowing_sand')}  140 Min = 2 H 40 Min  ~  (8.00 - <sbatta/>)`.yellow)
-log('     Fare storie matte ahahah'.yellow)
-log('     #swapick'.yellow)
-log()
-log(`${emoji.get('zzz')}    ww1`)
-log(`${emoji.get('zzz')}    swapick-bug-drago  ${emoji.get('hourglass_flowing_sand')}  140 Min = 2 H 40 Min ~   (8.00 - <sbatta/>) `)
-log()
-log(`${emoji.get('rocket')}    swapick-bug-drago  ${emoji.get('hourglass_flowing_sand')}  140 Min = 2 H 40 Min ~  (8.00 - 9.00) (10.00 - 11.32) http://workplan.inmagik.com/projects/3/activities/274`.green)
-log(`${emoji.get('rocket')}    swapick-bug-drago  ${emoji.get('hourglass_flowing_sand')}  140 Min = 2 H 40 Min ~  (8.00 - 9.00) (10.00 - 11.32)`.green)
-log()
-// process.stdout.write(`${emoji.get('coffe')}\n`)
-// process.stdout.write(emoji.get('rocket')+'\n');
+const logTable = (rows) => {
 
+  const maxPerCols = _.range(_.get(rows, '[0]', []).length)
+    .map(i => _.max(rows.map(row => row[i].length)))
+
+  _.forEach(rows, row => {
+    log(_.reduce(row, (out, cell, i) => out + _.padEnd(cell, maxPerCols[i]), ''))
+  })
+}
 
 program
   .version('0.1.0')
@@ -49,7 +51,7 @@ program
   .command('clear')
   .action(() => {
     writeSbatte({})
-    console.log('All sbatte cleared'.green)
+    log('All sbatte cleared'.green)
   })
 
 program
@@ -58,18 +60,17 @@ program
     const sbatte = readSbatte()
     const sessions = _.get(sbatte, name, [])
 
-    // if (sessions.length > 0 && !sessions[sessions.length - 1].stop) {
-    //   console.log('Sbatta alredy started, you must first close it! Sooocio'.red)
-    //   return
-    // }
-    //
-    // writeSbatte({
-    //   ...sbatte,
-    //   [name]: sessions.concat({ start: moment().format(T) })
-    // })
+    if (sessions.length > 0 && !sessions[sessions.length - 1].stop) {
+      log('Sbatta alredy started, you must first close it! Sooocio'.red)
+      return
+    }
 
-    console.log('\u1F37A')
-    // console.log('Sbatta started', emoji.get('coffe'))
+    writeSbatte({
+      ...sbatte,
+      [name]: sessions.concat({ start: moment().format(T) })
+    })
+
+    log('Sbatta started'.green)
   })
 
 program
@@ -79,7 +80,7 @@ program
     const sessions = _.get(sbatte, name, [])
 
     if (sessions.length === 0 || (sessions.length > 0 && sessions[sessions.length - 1].stop)) {
-      console.log('Before stop a sbatta you must start it! Sooocio'.red)
+      log('Before stop a sbatta you must start it! Sooocio'.red)
       return
     }
 
@@ -91,30 +92,54 @@ program
       }))
     })
 
-    console.log('Sbatta stopped'.green)
+    log('Sbatta stopped'.green)
   })
 
 program
   .command('list')
   .action(() => {
-    const sbatte = readSbatte()
+    const sbatte = _.pickBy(readSbatte(), sessions => sessions.length > 0)
 
     if (_.keys(sbatte).length === 0) {
-      console.log('Zebra sbatte stupid monkey'.yellow)
+      log('Zebra sbatte stupid monkey'.yellow)
       return
     }
 
-    _.forEach(sbatte, (sessions, name) => {
+    // Make sbatte rows for table
+    const rows = _.map(sbatte, (sessions, name) => {
       const lastSession = _.last(sessions)
-      if (lastSession) {
-        if (lastSession.stop) {
-          const minutes = sessionsMinutesSpent(sessions)
-          console.log(`${name} spent ${minutes} min`)
-        } else {
-          console.log(`${name} last start at ${lastSession.start}`.green)
-        }
-      }
+      const status = lastSession.stop ? 'sleep' : 'working'
+
+      const minutes = status === 'sleep'
+        ? sessionsMinutesSpent(sessions)
+        // TODO: Fix updateLast must be immutable
+        : sessionsMinutesSpent(updateLast([].concat(sessions), s => ({ ...s, stop: moment().format(T) })))
+
+      const sessionsStrs = sessions
+        .map(session => {
+          const start = moment(session.start, T).format(H)
+          const stop = session.stop ? moment(session.stop, T).format(H) : '<sbatta/>'
+          return `(${start} - ${stop})`
+        })
+        .join(' ')
+
+      const color = status === 'working' ? 'yellow' : 'white'
+
+      return [
+        emoji.get(STATUS_EMOJI[status]),
+        space(2),
+        name[color],
+        space(2),
+        emoji.get('hourglass_flowing_sand'),
+        space(2),
+        `${minutes} Min`[color],
+        ' ~ '[color],
+        `${sessionsStrs}`[color],
+      ]
     })
+    log()
+    logTable(rows)
+    log()
   })
 
 program.parse(process.argv)
