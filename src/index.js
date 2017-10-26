@@ -14,7 +14,7 @@ const inquirer = require('inquirer')
 const { exec } = require('child_process')
 const _ = require('lodash')
 const api = require('./api')
-const { readSbatte, writeSbatte } = require('./db')
+const { DB_FILE, readSbatte, writeSbatte } = require('./db')
 const {
   T, M, H,
   sessionsMinutesSpent,
