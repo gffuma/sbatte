@@ -315,18 +315,7 @@ program
     const mapSbatte = sbatte => _.map(sbatte, (sbatta, name) => {
       const { sessions } = sbatta
       const lastSession = _.last(sessions)
-      // Calculate le sbatta status
-      let status
-      if (sbatta.activityId) {
-        status = 'pushed'
-      } else if (sbatta.done) {
-        status = 'done'
-      } else if (lastSession.stop) {
-        status = 'sleep'
-      } else {
-        status = 'working'
-      }
-
+      const status = getSbattaStatus(sbatta)
       const minutes = sessionsMinutesSpent(updateLast(sessions, touchStop))
 
       const sessionsStrs = sessions
@@ -353,10 +342,12 @@ program
       ]
     })
 
-    // logTable(rows)
     log()
     const rows = ['working', 'sleep', 'done', 'pushed'].reduce((r, status) => {
-      return r.concat(mapSbatte(sbatteByStatus[status] || []), [_.range(9).map(space)])
+      if (!sbatteByStatus[status]) {
+        return r
+      }
+      return r.concat(mapSbatte(sbatteByStatus[status] || []), [_.range(9).map(() => space())])
     }, [])
     logTable(rows)
   })
