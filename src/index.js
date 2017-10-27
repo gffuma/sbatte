@@ -16,7 +16,7 @@ const _ = require('lodash')
 const api = require('./api')
 const { DB_FILE, readSbatte, writeSbatte } = require('./db')
 const {
-  T, M, H,
+  T, D, H,
   sessionsMinutesSpent,
   touchStop,
   updateLast,
