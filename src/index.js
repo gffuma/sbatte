@@ -243,7 +243,7 @@ program
           message: 'Insert activity notes'
         }]
 
-        const whatNotes = sbatta.description ? Promise.resolve(sbatta.description) : inquirer.prompt(questionsNotes)
+        const whatNotes = sbatta.description ? Promise.resolve({ notes: sbatta.description }) : inquirer.prompt(questionsNotes)
 
         whatNotes.then(({ notes }) => {
           const sessions = updateLast(sbatta.sessions, touchStop)
